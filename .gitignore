@@ -1,0 +1,14 @@
+
+*.mat
+*.png
+*.jpg
+data/
+learning/
+*.ply
+__pycache__/
+*.zip
+*.npy
+*.npz
+imgs/
+*.bin
+*.jpeg
