@@ -2,15 +2,13 @@
 # @Date:   2017-12-21T12:17:06+00:00
 # @Email:  hao.guan@digitalbridge.eu
 # @Last modified by:   hao
-# @Last modified time: 2017-12-22T11:36:56+00:00
+# @Last modified time: 2018-01-29T13:30:17+00:00
 
 
 import numpy as np
 import matplotlib.pyplot as plt
-import handy_function
+import common.common as cm
 import argparse
-import ipdb
-import json
 import cv2
 import os
 
@@ -78,113 +76,14 @@ def build_parser():
     return parser
 
 
-def dict_wrap(
-        img_dir, timestamps, intrinsics, extrinsics,
-        npz_dir, highresolution_suffix='-1.000',
-        split_symbol='-', file_format='.jpeg'):
-    """Wrap the data into a npz file.
-
-    Parameters:
-    img_dir: the image directory
-    timestamps: the time stamp array
-    intrinsics: the intrinsic matrix for each time stamp
-    extrinsics: the extrinsic matrix for each time stamp
-
-    Returns:
-    Nothing but a npz file.
-    """
-
-    image_name = str(timestamp) + highresolution_suffix + file_format
-    image_full_path = handy_function.path_join(img_dir, image_name)
-    assert os.path.isfile(image_full_path), (
-        'File {} does not exist!'.format(image_full_path)
-    )
-
-    frame_id = (np.abs(timestamps - timestamp)).argmin()
-    return [
-        {
-            'timestamp': timestamp,
-            'image': image,
-            'frame_id': frame_id,
-            'extrinsic': extrinsics,
-            'intrinsic': intrinsics
-        }]
-
-
-def plot_camera(camera_pose, label, ax, s=1):
-    """Function that plots camera poses
-
-    Parameters
-    ----------
-    camera_pose : pose of the camera with respect to world coordinates
-    label : text to display over the center of the camera
-    ax : matplotlib 3D axes
-    s : length of the axis arrows
-
-    """
-    ax.scatter(*camera_pose[:3, 3])
-    ax.quiver(*camera_pose[:3, 3], *camera_pose[:3, 0], color='red', length=s)
-    ax.quiver(*camera_pose[:3, 3], *camera_pose[:3, 1], color='green', length=s)
-    ax.quiver(*camera_pose[:3, 3], *camera_pose[:3, 2], color='blue', length=s)
-    ax.text(*(camera_pose[:3, 3] + np.array([0.1, 0.1, 0.1])), label)
-
-
-def extrinsic_matrix_get(transforms, mode):
-    """Calculate the extrinsic matrix.
-
-    Parameters:
-    transforms: the "ARKit" transform matrix.
-
-    Return:
-    the extrinsic matrix in a list.
-    """
-    # Transformation from arkit camera to opencv camera. Opencv camera has the z pointing forward. This transformation
-    # depends on the modality the scan has been made. If the phone is in portrait mode, then the x points down, the
-    # y points right and the z points backwards. If the phone is in landscape mode, then the coordinate frame is
-    # the same as ARKit world (x pointing right, y pointing up, z pointing backwards).
-    # Opencv camera, however, has x pointing right, y pointing down and z pointing forward.
-    if mode == 'P':
-        arkitc_matrix_opencv = np.array([[0, 1, 0, 0],
-                                         [1, 0, 0, 0],
-                                         [0, 0, -1, 0],
-                                         [0, 0, 0, 1]])
-
-    elif mode == 'LR':
-        arkitc_matrix_opencv = np.array([[-1, 0, 0, 0],
-                                         [0, 1, 0, 0],
-                                         [0, 0, -1, 0],
-                                         [0, 0, 0, 1]])
-
-    else:
-        arkitc_matrix_opencv = np.array([[1, 0, 0, 0],
-                                         [0, -1, 0, 0],
-                                         [0, 0, -1, 0],
-                                         [0, 0, 0, 1]])
-    # Transformation from world to arkit world. ARKit world has the y axis pointing up, the x axis pointing towards
-    # right and the z axis pointing backwards. The world has the x axis pointing right, the y axis pointing forward
-    # and the z axis pointing up.
-    world_matrix_arkitw = np.array([[1, 0, 0, 0],
-                                    [0, 0, -1, 0],
-                                    [0, 1, 0, 0],
-                                    [0, 0, 0, 1]])
-    # here we get transforms from the world to opencv. This way we are going to have the opencv-style orientation
-    # of the camera with respect to the world. To do so, the opencv transformation has to go on the right.
-    tmp = world_matrix_arkitw.dot(transforms)
-    # extrinsic_matrix.append(tmp.dot(arkitc_matrix_opencv))
-
-    return tmp.dot(arkitc_matrix_opencv)
-
-
 def main():
     """Main function."""
     args = build_parser().parse_args()
     assert os.path.isfile(args.filename), (
         'File {} does not exist!'.format(args.filename)
     )
-    json_data = handy_function.json_read(
-        handy_function.path_join(args.filename))
-    folder = handy_function.path_join(args.folder)
-    mode = args.mode
+    json_data = cm.json_read(
+        cm.path_join(args.filename))
     # write_transformations = False
     # if plot_transformations is set to true, all the camera positions are plotted using matplotlib
     plot_transformations = False
@@ -195,14 +94,12 @@ def main():
     frames = json_data['frames']
     image_data = []
     dump_num = 0
-    # ipdb.set_trace()
     image_name_tmp = []
     for ind, frame in enumerate(frames):
-        # ipdb.set_trace()
         timestamp = frame['timestamp']
         image_name = str(timestamp) + args.highresolution_suffix + args.img_format
-        image_full_path = handy_function.path_join(args.folder, image_name)
-        if (handy_function.is_file(image_full_path) is False) or (image_name in image_name_tmp):
+        image_full_path = cm.path_join(args.folder, image_name)
+        if (cm.is_file(image_full_path) is False) or (image_name in image_name_tmp):
             if(args.test_mode is True):
                 print('the image {} in the json file does not exist in the folder or repeated, so skip'.format([image_name]))
             dump_num = dump_num + 1
@@ -222,7 +119,7 @@ def main():
              [t[2]['x'], t[2]['y'], t[2]['z'], t[2]['w']],
              [t[3]['x'], t[3]['y'], t[3]['z'], t[3]['w']]]).T
 
-        extrinsic_matrix = extrinsic_matrix_get(transforms_transpose, args.mode)
+        extrinsic_matrix = cm.extrinsic_matrix_get(transforms_transpose, args.mode)
 
         frame_id = ind - dump_num
         # TODO: looks darker
@@ -238,7 +135,7 @@ def main():
             })
         image_name_tmp.append(image_name)
     print('Now saving...')
-    npz_file_full_path = handy_function.path_join(
+    npz_file_full_path = cm.path_join(
         args.npz_dir, args.folder.split('/')[-1], 'tmp.npz')
     np.savez(npz_file_full_path, image_data=image_data)
     print('done!')
@@ -260,8 +157,8 @@ def main():
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
         for pose in extrinsic_matrix:
-            plot_camera(pose, '', ax, s=0.01)
-        axis_equal_3d(ax)
+            cm.plot_camera(pose, '', ax, s=0.01)
+        cm.axis_equal_3d(ax)
         ax.set_xlabel('x')
         ax.set_ylabel('y')
         ax.set_zlabel('z')

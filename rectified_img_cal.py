@@ -2,7 +2,7 @@
 # @Date:   2018-01-02T11:29:25+00:00
 # @Email:  hao.guan@digitalbridge.eu
 # @Last modified by:   hao
-# @Last modified time: 2018-01-15T17:19:16+00:00
+# @Last modified time: 2018-01-29T13:11:56+00:00
 
 
 import argparse
@@ -10,14 +10,10 @@ import configparser
 import os
 
 import cv2
-import ipdb
 import numpy as np
-import plot_functions as pf
-import handy_function as hf
-import stereoVision.stereo_vision as sv
 from matplotlib import pyplot as plt
-import io_functions as io
-from scipy import misc, ndimage
+from scipy import ndimage
+from PIL import Image
 
 
 def build_parser():
@@ -256,6 +252,60 @@ def rectify_opencv(camera_l_pose, camera_r_pose, intrinsics_l, intrinsics_r, vis
     return img_rect1, img_rect2, Q
 
 
+def image_save(the_path, the_img_data):
+    """Save the image.
+
+    Arguments:
+    the_path: the full path you want to save.
+    the_img_data: the image data you want to save.
+
+    No return.
+    """
+    from scipy.misc import imsave
+    imsave(the_path, the_img_data)
+
+
+def npz_load(the_file_path, the_value_name):
+    """Load the npz file.
+
+    Arguments:
+    the_file_path: the full path.
+    the_value_name: the value name in the npz file.
+
+    return:
+    the npz value.
+    """
+    npzfile = np.load(the_file_path)
+    return npzfile[the_value_name]
+
+
+def image_show(image_array):
+    """Show the image.
+
+    Arguments:
+    image_array: the image array.
+
+    No return.
+    """
+    # change from the range 0-1 to 0-255 for display.
+    if(image_array.max() != 255):
+        tmp = (image_array - image_array.min()) / (image_array.max() - image_array.min()) * 255
+        image_array = Image.fromarray(tmp.astype('uint8'))
+    else:
+        image_array = Image.fromarray(image_array.astype('uint8'))
+    image_array.show()
+
+
+def directory_current_get():
+    """Get the current directory."""
+    return os.getcwd()
+
+
+def path_join(*args):
+    """Do the os path join thing."""
+    return os.path.join(*args)
+
+
 def main():
     """Main."""
     args = build_parser().parse_args()
@@ -272,7 +322,7 @@ def main():
 
     mode = settings['mode']
     npz_file_full_path = settings['npz_file']
-    image_data = hf.npz_load(npz_file_full_path, 'image_data')
+    image_data = npz_load(npz_file_full_path, 'image_data')
     # pair of images
     vis_l = image_data[id1]['image_mat']
     vis_r = image_data[id2]['image_mat']
@@ -283,8 +333,8 @@ def main():
     # ipdb.set_trace()
     # vis_l = cv2.fastNlMeansDenoisingColored(vis_l, None, 10, 10, 7, 21)
     # vis_r = cv2.fastNlMeansDenoisingColored(vis_r, None, 10, 10, 7, 21)
-    hf.image_show(vis_l)
-    hf.image_show(vis_r)
+    image_show(vis_l)
+    image_show(vis_r)
     #
     # ipdb.set_trace()
     # poses relative to those frames
@@ -312,11 +362,11 @@ def main():
         # we show the image pairs
         show_image_pair(img_rect1, img_rect2, scale)
     # ipdb.set_trace()
-    current_dir = hf.directory_current_get()
-    imgL_save = hf.path_join(current_dir, 'rectified_l11.png')
-    imgR_save = hf.path_join(current_dir, 'rectified_r11.png')
-    hf.image_save(imgL_save, img_rect1)
-    hf.image_save(imgR_save, img_rect2)
+    current_dir = directory_current_get()
+    imgL_save = path_join(current_dir, 'rectified_l11.png')
+    imgR_save = path_join(current_dir, 'rectified_r11.png')
+    image_save(imgL_save, img_rect1)
+    image_save(imgR_save, img_rect2)
     print('Image L and R saved!')
 
     # handy_function()

@@ -2,7 +2,7 @@
 # @Date:   2017-12-22T11:23:46+00:00
 # @Email:  hao.guan@digitalbridge.eu
 # @Last modified by:   hao
-# @Last modified time: 2018-01-15T16:41:01+00:00
+# @Last modified time: 2018-01-29T13:23:49+00:00
 
 
 import argparse
@@ -10,14 +10,9 @@ import configparser
 import os
 
 import cv2
-import ipdb
 import numpy as np
-import plot_functions as pf
-import handy_function as hf
-import stereo_vision.stereo_vision as sv
-from matplotlib import pyplot as plt
+import common.common as cm
 import io_functions as io
-from scipy import misc, ndimage
 
 
 def build_parser():
@@ -128,102 +123,6 @@ def parse_config_file(settings_file):
     return settings
 
 
-def rectify_opencv(camera_l_pose, camera_r_pose, intrinsics_l, intrinsics_r, vis_l, vis_r, dist_coefficients_l=None,
-                   dist_coefficients_r=None):
-    """Function that rectifies two images using opencv stereoRectify method.
-
-    Parameters
-    ----------
-    camera_l_pose : 4x4, left camera pose
-    camera_r_pose : 4x4, right camera pose
-    intrinsics_l : intrinsic parameters for left camera
-    intrinsics_r : intrinsic parameters for right camera
-    vis_l : left image
-    vis_r : right image
-    dist_coefficients_l : a 5-dimensional numpy array of distortion coefficients for the first camera
-    dist_coefficients_r : a 5-dimensional numpy array of distortion coefficients for the second camera
-    scale : multiplier that determines the size of the rectified image
-
-    Returns
-    -------
-    img_rect1 : left image rectified
-    img_rect2 : right image rectified
-    Q : projection matrix to re-project points in 3D
-    """
-    # if not check_epipoles(intrinsics_l, intrinsics_r, camera_l_pose, camera_r_pose, vis_l, vis_r):
-    #     raise RuntimeError('One of the epipoles is in the image, rectification cannot be performed')
-
-    if dist_coefficients_l is None:
-        dist_coefficients_l = np.array([0.0, 0, 0, 0, 0])
-    if dist_coefficients_r is None:
-        dist_coefficients_r = np.array([0.0, 0, 0, 0, 0])
-
-    rotation = camera_r_pose[:3, :3].transpose().dot(camera_l_pose[:3, :3])
-    translation = camera_r_pose[:3, :3].transpose().dot(camera_l_pose[:3, 3] - camera_r_pose[:3, 3])
-    # or, we could use the inverse of the camera r pose multiplied by the left camera pose directly and then
-    # take the rotation and translation from it
-    # r_transform_l = np.linalg.inv(camera_r_pose).dot(camera_l_pose)
-
-    h, w = vis_l.shape[:2]
-    # it looks like initUndistortRectifyMap wants (width, height)
-    size = (w, h)
-    # size of the rectified image
-    # new_size = (round(size[0] * scale), round(size[1] * scale))
-    new_size = size
-
-    # stereoRectify returns two rotation matrices R1 and R2, two new camera projective matrices with new intrinsics
-    # P1 and P2, Q to reproject points in 3D and valid rois on the images.
-    # N.B.  "alpha=0 means that the rectified images are zoomed and shifted so that
-# only valid pixels are visible (no black areas after rectification). alpha=1 means
-# that the rectified image is decimated and shifted so that all the pixels from the original images
-# from the cameras are retained in the rectified images (no source image pixels are lost)."
-    R1, R2, P1, P2, Q, roi1, roi2 = cv2.stereoRectify(
-        intrinsics_l, dist_coefficients_l,
-        intrinsics_r, dist_coefficients_r,
-        size, rotation, translation,
-        flags=cv2.CALIB_ZERO_DISPARITY, alpha=-1)
-    # TODO: alpha=0
-
-    # R1 = np.mat(np.empty((3, 3)))
-    # R2 = np.float32(np.empty((3, 3)))
-    # P1 = np.float32(np.empty((3, 4)))
-    # P2 = np.float32(np.empty((3, 4)))
-    # Q = np.float32(np.empty((4, 4)))
-    # cv2.stereoRectify(
-    #     intrinsics_l, dist_coefficients_l, intrinsics_r, dist_coefficients_r, (w, h),
-    #     rotation, translation, R1, R2, P1, P2, Q, cv2.CALIB_ZERO_DISPARITY, -1, (0, 0))
-    # ipdb.set_trace()
-    # we create the maps to rectify the images.
-    mapx1, mapy1 = cv2.initUndistortRectifyMap(intrinsics_l, dist_coefficients_l, R1, P1,
-                                               new_size,
-                                               cv2.CV_32FC1)
-    # TODO: cv2.CV_32F
-    mapx2, mapy2 = cv2.initUndistortRectifyMap(intrinsics_r, dist_coefficients_r, R2, P2,
-                                               new_size,
-                                               cv2.CV_32FC1)
-    # TODO: undistort and rectify based on the mappings
-    # (could improve interpolation and image border settings here)
-    # remapping the original images into the rectified images
-    img_rect1 = cv2.remap(vis_l, mapx1, mapy1, cv2.INTER_LINEAR)
-    img_rect2 = cv2.remap(vis_r, mapx2, mapy2, cv2.INTER_LINEAR)
-
-    return img_rect1, img_rect2, Q
-
-
-def image_measure(img, test_mode=True):
-    """Image smoothing and denoising."""
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY).astype(float)
-    img = ndimage.gaussian_filter(img, sigma=5)
-    filter_blurred_f = ndimage.gaussian_filter(img, 3)
-    alpha = 30
-    sharpened = img + alpha * (img - filter_blurred_f)
-    if(test_mode):
-        plt.imshow(sharpened, cmap='gray')
-        plt.show()
-    img = sharpened
-    return img
-
-
 def main():
     """Main."""
     args = build_parser().parse_args()
@@ -244,8 +143,8 @@ def main():
     # pair of images
     vis_l = image_data[id1]['image_mat']
     vis_r = image_data[id2]['image_mat']
-    hf.image_save('tmp1.png', vis_l)
-    hf.image_save('tmp2.png', vis_r)
+    cm.image_save('tmp1.png', vis_l)
+    cm.image_save('tmp2.png', vis_r)
     # denoise
 
     # vis_l = image_measure(vis_l)
@@ -272,23 +171,23 @@ def main():
         intrinsics_r[:2, 2] = intrinsics_r[:2, 2][::-1]
 
     # opencv rectification
-    img_rect1, img_rect2, Q1 = rectify_opencv(
+    img_rect1, img_rect2, Q1 = cm.rectify_opencv(
         camera_l_pose, camera_r_pose, intrinsics_l, intrinsics_r, vis_l,
         vis_r)
-    hf.image_save('rec_l.png', img_rect1)
-    hf.image_save('rec_r.png', img_rect2)
+    cm.image_save('rec_l.png', img_rect1)
+    cm.image_save('rec_r.png', img_rect2)
     scale = 1
     if args.show_images:
         # we show the image pairs
-        pf.show_image_pair(img_rect1, img_rect2, "rectified", scale)
+        cm.show_image_pair(img_rect1, img_rect2, "rectified", scale)
 
     # we transform the images in grayscale
     gray_l = cv2.cvtColor(img_rect1, cv2.COLOR_BGR2GRAY)
     gray_r = cv2.cvtColor(img_rect2, cv2.COLOR_BGR2GRAY)
 
-    displ, filtered_img16 = sv.compute_disparity(gray_l, gray_r, settings)
-    hf.image_save('disp.png', displ)
-    hf.image_save('disp_filter.png', filtered_img16)
+    displ, filtered_img16 = cm.compute_disparity(gray_l, gray_r, settings)
+    cm.image_save('disp.png', displ)
+    cm.image_save('disp_filter.png', filtered_img16)
     # ipdb.set_trace()
     f = 1164
     c_x = 360
@@ -298,11 +197,11 @@ def main():
                     [0, 0, 0, -f],  # so that y-axis looks up
                     [0, 0, 1, 0]])
     disp = filtered_img16
-    # points_3d = sv.project_points_3D(displ, Q1)
+    # points_3d = cm.project_points_3D(displ, Q1)
     points_3d = cv2.reprojectImageTo3D(filtered_img16, Q, ddepth=cv2.CV_32F)
 
     if args.show_images:
-        pf.show_disparity(disp, filtered_img16, scale)
+        cm.show_disparity(disp, filtered_img16, scale)
         cv2.waitKey()
 
     if args.write_ply:

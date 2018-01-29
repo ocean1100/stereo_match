@@ -2,7 +2,7 @@
 # @Date:   2018-01-02T11:22:32+00:00
 # @Email:  hao.guan@digitalbridge.eu
 # @Last modified by:   hao
-# @Last modified time: 2018-01-16T16:15:58+00:00
+# @Last modified time: 2018-01-29T14:02:33+00:00
 # !/usr/bin/env python
 
 '''
@@ -13,13 +13,11 @@ Resulting .ply file cam be easily viewed using MeshLab ( http://meshlab.sourcefo
 
 import numpy as np
 import cv2
-from PIL import Image
 from matplotlib import pyplot as plt
 import handy_function as hf
-from scipy import misc, ndimage
-# from skimage.restoration import (denoise_tv_chambolle, denoise_bilateral,
-#                                  denoise_wavelet, estimate_sigma)
-import ipdb
+from scipy import ndimage
+from skimage.restoration import (denoise_tv_chambolle, denoise_bilateral,
+                                 denoise_wavelet, estimate_sigma)
 
 ply_header = '''ply
 format ascii 1.0
@@ -43,7 +41,6 @@ def write_ply(fn, verts, colors):
     with open(fn, 'wb') as f:
         f.write(asd)
         np.savetxt(f, verts, '%f %f %f %d %d %d')
-    # ipdb.set_trace()
     # with open(fn, 'r') as original:
     #         data = original.read()
     # with open('out_put_name.ply', 'w') as modified:
@@ -53,7 +50,6 @@ def write_ply(fn, verts, colors):
 
 def image_measure(img, test_mode=True):
     """Image smoothing and denoising."""
-    # ipdb.set_trace()
     img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY).astype(float)
     img = ndimage.gaussian_filter(img, sigma=5)
     filter_blurred_f = ndimage.gaussian_filter(img, 3)
@@ -81,7 +77,7 @@ if __name__ == '__main__':
 
     vis_l = image_measure(imgL)
     vis_r = image_measure(imgR)
-    # ipdb.set_trace()
+    # set_trace()
     gray_l = cv2.cvtColor(imgL, cv2.COLOR_BGR2GRAY)
     gray_r = cv2.cvtColor(imgR, cv2.COLOR_BGR2GRAY)
     # imgL = cv2.fastNlMeansDenoisingColored(imgL, None, 10, 10, 7, 21)
@@ -109,15 +105,12 @@ if __name__ == '__main__':
     # hf.image_save('rectified_l_tmp.png', cv2.cvtColor(imgL, cv2.COLOR_BGR2RGB))
     # hf.image_save('rectified_r_tmp.png', cv2.cvtColor(imgR, cv2.COLOR_BGR2RGB))
 
-    # ipdb.set_trace()
     # hf.image_save('rectified_l_gray.png', cv2.cvtColor(gray_l, cv2.COLOR_gray))
     hf.image_save('rectified_l_gray_bilateral2.png', gray_l)
     hf.image_save('rectified_r_gray_bilateral2.png', gray_r)
     hf.image_show(gray_l)
-    # ipdb.set_trace()
 
     # hf.image_show(vis_l)
-    # ipdb.set_trace()
 
     # imgL = cv2.imread('/home/hao/MyCode/openCV_examples/samples/gpu/tsucuba_left.png', 1)  # downscale images for faster processing
     # imgR = cv2.imread('/home/hao/MyCode/openCV_examples/samples/gpu/tsucuba_right.png', 1)
@@ -180,13 +173,12 @@ if __name__ == '__main__':
     right_matcher = cv2.ximgproc.createRightMatcher(left_matcher)
     # wls_filter = cv2.ximgproc.createDisparityWLSFilter(left_matcher)
     wls_filter = cv2.ximgproc.createDisparityWLSFilterGeneric(False)
-    lmbda = 10000000 # 80000
-    sigma = 1.5 # 1.2
+    lmbda = 10000000  # 80000
+    sigma = 1.5  # 1.2
     wls_filter.setLambda(lmbda)
     wls_filter.setSigmaColor(sigma)
 
     # disparity map computation
-    # ipdb.set_trace()
 
     displ = left_matcher.compute(gray_l, gray_r)
     dispr = right_matcher.compute(gray_r, gray_l)
@@ -195,14 +187,12 @@ if __name__ == '__main__':
     displ16 = np.int16(displ)
     dispr16 = np.int16(dispr)
     # we filter the depth map here
-    # ipdb.set_trace()
     filtered_img = wls_filter.filter(displ16, gray_l, None, dispr16)
     # filtered_img = cv2.normalize(src=filtered_img, dst=filtered_img, beta=0, alpha=255, norm_type=cv2.NORM_MINMAX)
 
     print('computing disparity...')
     # stereo1 = stereo.compute(imgL, imgR)
     stereo1 = stereo.compute(gray_l, gray_r)
-    # ipdb.set_trace()
     disp = filtered_img.astype(np.float32) / 16.0
     # disp = stereo1.astype(np.float32) / 16.0
     # disp = stereo1 #filtered_img
@@ -221,46 +211,37 @@ if __name__ == '__main__':
     #                 [0, -1, 0, c_y],  # turn points 180 deg around x-axis,
     #                 [0, 0, 0, -f],  # so that y-axis looks up
     #                 [0, 0, 1, 0]])
-    # ipdb.set_trace()
     Tx = -22
     Q = np.float32([[1, 0, 0, -c_x],
                     [0, -1, 0, c_y],  # turn points 180 deg around x-axis,
                     [0, 0, 0, -f],  # so that y-axis looks up
-                    [0, 0, -1/Tx, 0]])
+                    [0, 0, -1 / Tx, 0]])
     points = cv2.reprojectImageTo3D(disp, Q, ddepth=cv2.CV_32F)
     points_normalize = np.zeros(points.shape)
     points_normalize = cv2.normalize(points, points_normalize, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8UC3)
-    # ipdb.set_trace()
     # points = points[:,:,2]*100
     colors = cv2.cvtColor(imgL, cv2.COLOR_BGR2RGB)
-    # ipdb.set_trace()
 
     # colors = colors[~np.isnan(points).any(axis=1),:,:]
     # disp[disp == disp.min()] = 0
     # disp[disp == disp.max()] = 0
-    # ipdb.set_trace()
     # disp = disp[np.int(h/4):np.int(h/2+h/4), np.int(w/4):np.int(w/2+w/4)]
     # points = points[np.int(h/4):np.int(h/2+h/4), np.int(w/4):np.int(w/2+w/4),:]
     # colors = colors[np.int(h/4):np.int(h/2+h/4), np.int(w/4):np.int(w/2+w/4),:]
     # mask = disp > disp.min()
     tmp = np.unique(disp.flatten())
-    # ipdb.set_trace()
     # mask = np.logical_and(disp < tmp[-1], disp > 2)
     # disp = disp/disp.max()
     # from sklearn.preprocessing import normalize
     # disp = normalize(disp, norm='l2')
-    # ipdb.set_trace()
     asd = np.unique(disp)
-    # ipdb.set_trace()
     mask = disp > 2
     # mask = disp > 0.625
     # mask = disp > disp.min()
     out_points = points[mask]
     out_colors = colors[mask]
-    # ipdb.set_trace()
     out_points[np.isnan(out_points)] = 0
     out_points[np.isinf(out_points)] = 0
-    # ipdb.set_trace()
     out_fn = 'try.ply'
     write_ply(out_fn, out_points, out_colors)
     print('saved {} ply'.format(out_fn))
@@ -269,7 +250,6 @@ if __name__ == '__main__':
     # cv2.imshow('left', imgL)
     hf.image_show((disp - min_disp) / num_disp)
     hf.image_save('dis.png', (disp - min_disp) / num_disp)
-    # ipdb.set_trace()
     # cv2.imshow('disparity', (disp - min_disp) / num_disp)
     # test
     # norm_coeff = 255 / stereo1.max()

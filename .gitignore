@@ -2,7 +2,7 @@
 *.mat
 *.png
 *.jpg
-data/
+imgs/
 learning/
 *.ply
 __pycache__/
